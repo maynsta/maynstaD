@@ -121,11 +121,27 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Handle automatic next song
   useEffect(() => {
-    const handleEnded = () => playNext()
     const audio = audioRef.current
+    const handleEnded = () => {
+      if (playlist.length === 0) return
+      const nextIndex = (currentIndex + 1) % playlist.length
+      setCurrentIndex(nextIndex)
+      
+      const nextSong = playlist[nextIndex]
+      if (audio.src !== nextSong.url) {
+        audio.pause()
+        audio.src = nextSong.url
+        audio.currentTime = 0
+      }
+      setCurrentSong(nextSong)
+      audio.play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setIsPlaying(false))
+    }
+    
     audio.addEventListener('ended', handleEnded)
     return () => audio.removeEventListener('ended', handleEnded)
-  }, [playlist, currentIndex, userInteracted])
+  }, [playlist, currentIndex])
 
   return (
     <PlayerContext.Provider

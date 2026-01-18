@@ -24,7 +24,11 @@ export default async function MainLayout({
       <SidebarProvider>
         <div className="flex h-screen bg-background text-foreground overflow-hidden">
           <Sidebar />
-          <MainContent>{children}</MainContent>
+          <MainContent>
+            <div className="min-h-[120vh] pb-32">
+              {children}
+            </div>
+          </MainContent>
           <PlayerBar />
         </div>
       </SidebarProvider>
