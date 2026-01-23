@@ -1,163 +1,164 @@
-// context/player-context.tsx
-'use client'
+"use client"
 
-import React, { createContext, useContext, useRef, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from "react"
+import type { Song } from "@/lib/types"
 
-export type Song = {
-  id: string
-  title: string
-  artist: string
-  album?: string
-  cover?: string
-  url: string
-}
+type RepeatMode = "off" | "one" | "all"
 
-type PlayerContextType = {
+interface PlayerContextType {
   currentSong: Song | null
   isPlaying: boolean
-  playSong: (song: Song) => void
-  pause: () => void
-  resume: () => void
-  playNext: () => void
-  playPrevious: () => void
-  playlist: Song[]
-  setPlaylist: (songs: Song[]) => void
+  currentTime: number
+  duration: number
+  playSong: (song: Song, queue?: Song[]) => void
+  togglePlay: () => void
+  next: () => void
+  prev: () => void
+  seek: (time: number) => void
+  toggleShuffle: () => void
+  toggleRepeat: () => void
+  isShuffled: boolean
+  repeatMode: RepeatMode
 }
 
-const PlayerContext = createContext<PlayerContextType | undefined>(undefined)
+const PlayerContext = createContext<PlayerContextType | null>(null)
 
-export const usePlayer = () => {
-  const context = useContext(PlayerContext)
-  if (!context) throw new Error('usePlayer must be used within PlayerProvider')
-  return context
-}
+export function PlayerProvider({ children }: { children: React.ReactNode }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
-export const PlayerProvider = ({ children }: { children: ReactNode }) => {
-  const audioRef = useRef<HTMLAudioElement>(new Audio())
+  const [queue, setQueue] = useState<Song[]>([])
+  const [index, setIndex] = useState(0)
   const [currentSong, setCurrentSong] = useState<Song | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [playlist, setPlaylist] = useState<Song[]>([])
-  const [currentIndex, setCurrentIndex] = useState<number>(0)
-  const [userInteracted, setUserInteracted] = useState(false) // für iOS Autoplay
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [isShuffled, setIsShuffled] = useState(false)
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>("off")
 
-  // Set User Interaction
   useEffect(() => {
-    const handleInteraction = () => setUserInteracted(true)
-    window.addEventListener('click', handleInteraction, { once: true })
-    window.addEventListener('touchstart', handleInteraction, { once: true })
+    const audio = new Audio()
+    audio.preload = "auto"              // 🔥 wichtig für iOS
+    audioRef.current = audio
+
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime || 0)
+    const onLoaded = () => setDuration(audio.duration || 0)
+    const onEnded = () => handleEnded()
+
+    audio.addEventListener("timeupdate", onTimeUpdate)
+    audio.addEventListener("loadedmetadata", onLoaded)
+    audio.addEventListener("ended", onEnded)
+
     return () => {
-      window.removeEventListener('click', handleInteraction)
-      window.removeEventListener('touchstart', handleInteraction)
+      audio.pause()
+      audio.removeEventListener("timeupdate", onTimeUpdate)
+      audio.removeEventListener("loadedmetadata", onLoaded)
+      audio.removeEventListener("ended", onEnded)
     }
   }, [])
 
-  const playSong = (song: Song) => {
-    if (!userInteracted) return // iOS: Audio darf nur nach Interaktion starten
-
-    if (audioRef.current.src !== song.url) {
-      audioRef.current.pause()
-      audioRef.current.src = song.url
-      audioRef.current.currentTime = 0
+  const handleEnded = () => {
+    if (repeatMode === "one") {
+      audioRef.current!.currentTime = 0
+      audioRef.current!.play()
+      return
     }
-    setCurrentSong(song)
-    audioRef.current
-      .play()
-      .then(() => setIsPlaying(true))
-      .catch(() => setIsPlaying(false)) // fallback falls Safari blockiert
+
+    if (index < queue.length - 1) {
+      next()
+    } else if (repeatMode === "all") {
+      setIndex(0)
+      playAtIndex(0)
+    } else {
+      setIsPlaying(false)
+    }
   }
 
-  const pause = () => {
-    audioRef.current.pause()
-    setIsPlaying(false)
-  }
+  const playAtIndex = (i: number) => {
+    const song = queue[i]
+    if (!song || !audioRef.current) return
 
-  const resume = () => {
-    if (!currentSong || !userInteracted) return
-    audioRef.current
-      .play()
-      .then(() => setIsPlaying(true))
-      .catch(() => setIsPlaying(false))
-  }
-
-  const playNext = () => {
-    if (playlist.length === 0) return
-    const nextIndex = (currentIndex + 1) % playlist.length
-    setCurrentIndex(nextIndex)
-    playSong(playlist[nextIndex])
-  }
-
-  const playPrevious = () => {
-    if (playlist.length === 0) return
-    const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length
-    setCurrentIndex(prevIndex)
-    playSong(playlist[prevIndex])
-  }
-
-  // Update currentIndex when currentSong changes
-  useEffect(() => {
-    if (!currentSong) return
-    const index = playlist.findIndex((s) => s.id === currentSong.id)
-    if (index !== -1) setCurrentIndex(index)
-  }, [currentSong, playlist])
-
-  // Media Session API for Lockscreen
-  useEffect(() => {
-    if (!('mediaSession' in navigator) || !currentSong) return
-
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: currentSong.title,
-      artist: currentSong.artist,
-      album: currentSong.album || '',
-      artwork: currentSong.cover
-        ? [{ src: currentSong.cover, sizes: '512x512', type: 'image/png' }]
-        : [],
-    })
-
-    navigator.mediaSession.setActionHandler('play', resume)
-    navigator.mediaSession.setActionHandler('pause', pause)
-    navigator.mediaSession.setActionHandler('previoustrack', playPrevious)
-    navigator.mediaSession.setActionHandler('nexttrack', playNext)
-  }, [currentSong])
-
-  // Handle automatic next song
-  useEffect(() => {
     const audio = audioRef.current
-    const handleEnded = () => {
-      if (playlist.length === 0) return
-      const nextIndex = (currentIndex + 1) % playlist.length
-      setCurrentIndex(nextIndex)
-      
-      const nextSong = playlist[nextIndex]
-      if (audio.src !== nextSong.url) {
-        audio.pause()
-        audio.src = nextSong.url
-        audio.currentTime = 0
-      }
-      setCurrentSong(nextSong)
-      audio.play()
-        .then(() => setIsPlaying(true))
-        .catch(() => setIsPlaying(false))
+    audio.src = song.audio_url
+    audio.load()               // 🔥 iOS braucht das
+    audio.currentTime = 0
+
+    audio.play().catch(() => {})
+    setCurrentSong(song)
+    setIndex(i)
+    setIsPlaying(true)
+  }
+
+  const playSong = (song: Song, list?: Song[]) => {
+    const q = list && list.length ? list : [song]
+    setQueue(q)
+
+    const i = q.findIndex((s) => s.id === song.id)
+    const startIndex = i >= 0 ? i : 0
+
+    playAtIndex(startIndex)
+  }
+
+  const togglePlay = () => {
+    if (!audioRef.current) return
+
+    if (isPlaying) {
+      audioRef.current.pause()
+      setIsPlaying(false)
+    } else {
+      audioRef.current.play().catch(() => {})
+      setIsPlaying(true)
     }
-    
-    audio.addEventListener('ended', handleEnded)
-    return () => audio.removeEventListener('ended', handleEnded)
-  }, [playlist, currentIndex])
+  }
+
+  const next = () => {
+    if (queue.length === 0) return
+    const nextIndex = index + 1 < queue.length ? index + 1 : 0
+    playAtIndex(nextIndex)
+  }
+
+  const prev = () => {
+    if (queue.length === 0) return
+    const prevIndex = index - 1 >= 0 ? index - 1 : queue.length - 1
+    playAtIndex(prevIndex)
+  }
+
+  const seek = (time: number) => {
+    if (!audioRef.current) return
+    audioRef.current.currentTime = time
+    setCurrentTime(time)
+  }
+
+  const toggleShuffle = () => setIsShuffled((s) => !s)
+
+  const toggleRepeat = () => {
+    setRepeatMode((m) => (m === "off" ? "all" : m === "all" ? "one" : "off"))
+  }
 
   return (
     <PlayerContext.Provider
       value={{
         currentSong,
         isPlaying,
+        currentTime,
+        duration,
         playSong,
-        pause,
-        resume,
-        playNext,
-        playPrevious,
-        playlist,
-        setPlaylist,
+        togglePlay,
+        next,
+        prev,
+        seek,
+        toggleShuffle,
+        toggleRepeat,
+        isShuffled,
+        repeatMode,
       }}
     >
       {children}
     </PlayerContext.Provider>
   )
+}
+
+export function usePlayer() {
+  const ctx = useContext(PlayerContext)
+  if (!ctx) throw new Error("usePlayer must be used within PlayerProvider")
+  return ctx
 }

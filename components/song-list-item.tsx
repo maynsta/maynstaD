@@ -41,9 +41,9 @@ export function SongListItem({
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
   const { toast } = useToast()
   const [isMounted, setIsMounted] = useState(false)
+
   const isCurrentSong = currentSong?.id === song.id
 
-  // Nur auf Client rendern, um Hydration-Mismatch zu vermeiden
   useEffect(() => {
     setIsMounted(true)
   }, [])
@@ -53,14 +53,22 @@ export function SongListItem({
       const allowed = await onRequestPin()
       if (!allowed) return
     }
-    playSong(song, queue || [song])
+
+    if (queue && queue.length > 0) {
+      playSong(song, queue)
+    } else {
+      playSong(song)
+    }
   }
+
+  // --- Restliche Handler unverändert ---
 
   const handleAddToLibrary = async () => {
     const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
+
     if (!user) {
       toast({
         title: "Fehler",
@@ -70,7 +78,6 @@ export function SongListItem({
       return
     }
 
-    // Check if already in library
     const { data: existing } = await supabase
       .from("library_items")
       .select("id")
@@ -92,7 +99,6 @@ export function SongListItem({
     })
 
     if (error) {
-      console.log("[v0] Error adding to library:", error)
       toast({
         title: "Fehler",
         description: "Konnte nicht zur Bibliothek hinzugefügt werden.",
@@ -112,7 +118,6 @@ export function SongListItem({
   const handleAddToPlaylist = async (playlistId: string) => {
     const supabase = createClient()
 
-    // Get current max position
     const { data: existingSongs } = await supabase
       .from("playlist_songs")
       .select("position")
@@ -120,7 +125,8 @@ export function SongListItem({
       .order("position", { ascending: false })
       .limit(1)
 
-    const nextPosition = existingSongs && existingSongs.length > 0 ? existingSongs[0].position + 1 : 0
+    const nextPosition =
+      existingSongs && existingSongs.length > 0 ? existingSongs[0].position + 1 : 0
 
     const { error } = await supabase.from("playlist_songs").insert({
       playlist_id: playlistId,
@@ -143,7 +149,6 @@ export function SongListItem({
     })
   }
 
-  // Render nur, wenn auf Client gemountet
   if (!isMounted) return null
 
   return (
@@ -153,13 +158,17 @@ export function SongListItem({
           isBlocked && showExplicitWarning ? "opacity-50" : ""
         }`}
       >
-        {/* Cover */}
         <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted overflow-hidden">
           {song.cover_url ? (
-            <img src={song.cover_url || "/placeholder.svg"} alt={song.title} className="h-full w-full object-cover" />
+            <img
+              src={song.cover_url || "/placeholder.svg"}
+              alt={song.title}
+              className="h-full w-full object-cover"
+            />
           ) : (
             <Music className="h-5 w-5 text-muted-foreground" />
           )}
+
           {isCurrentSong && isPlaying && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50">
               <div className="flex gap-0.5">
@@ -171,7 +180,6 @@ export function SongListItem({
           )}
         </div>
 
-        {/* Info */}
         <div className="flex-1 min-w-0">
           <p
             className={`text-sm font-medium truncate ${
@@ -179,12 +187,17 @@ export function SongListItem({
             } ${isBlocked && showExplicitWarning ? "line-through" : ""}`}
           >
             {song.title}
-            {song.is_explicit && <span className="ml-2 text-xs text-muted-foreground bg-muted px-1 rounded">E</span>}
+            {song.is_explicit && (
+              <span className="ml-2 text-xs text-muted-foreground bg-muted px-1 rounded">
+                E
+              </span>
+            )}
           </p>
-          <p className="text-xs text-muted-foreground truncate">{song.artist?.display_name || "Unbekannt"}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {song.artist?.display_name || "Unbekannt"}
+          </p>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -215,7 +228,10 @@ export function SongListItem({
                 <>
                   <DropdownMenuSeparator />
                   {playlists.map((playlist) => (
-                    <DropdownMenuItem key={playlist.id} onClick={() => handleAddToPlaylist(playlist.id)}>
+                    <DropdownMenuItem
+                      key={playlist.id}
+                      onClick={() => handleAddToPlaylist(playlist.id)}
+                    >
                       {playlist.name}
                     </DropdownMenuItem>
                   ))}
