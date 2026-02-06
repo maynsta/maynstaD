@@ -1,6 +1,6 @@
 {
   "name": "maynsta",
-  "version": "0.1.0",
+  "version": "1.2.3",
   "private": true,
   "scripts": {
     "build": "next build",
@@ -37,6 +37,7 @@
     "@radix-ui/react-toggle": "1.1.1",
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
+    "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "0.8.0",
     "@supabase/supabase-js": "latest",
     "@types/lodash": "^4.17.21",
@@ -47,6 +48,7 @@
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
+    "framer-motion": "^12.29.2",
     "input-otp": "1.4.1",
     "lodash": "^4.17.21",
     "lucide-react": "^0.454.0",
@@ -58,6 +60,7 @@
     "react-dom": "19.2.0",
     "react-hook-form": "^7.60.0",
     "react-resizable-panels": "^2.1.7",
+    "react-swipeable": "^7.0.2",
     "recharts": "2.15.4",
     "sonner": "^1.7.4",
     "swr": "2.3.7",

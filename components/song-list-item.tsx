@@ -37,7 +37,8 @@ export function SongListItem({
   isBlocked = false,
   onRequestPin,
 }: SongListItemProps) {
-  const { playSong, currentSong, isPlaying } = usePlayer()
+  // ⚡ Hier: playSong -> play
+  const { play, currentSong, isPlaying } = usePlayer()
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
   const { toast } = useToast()
   const [isMounted, setIsMounted] = useState(false)
@@ -55,13 +56,11 @@ export function SongListItem({
     }
 
     if (queue && queue.length > 0) {
-      playSong(song, queue)
+      play(song, queue)
     } else {
-      playSong(song)
+      play(song)
     }
   }
-
-  // --- Restliche Handler unverändert ---
 
   const handleAddToLibrary = async () => {
     const supabase = createClient()

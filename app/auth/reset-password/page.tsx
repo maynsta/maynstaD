@@ -34,12 +34,12 @@ export default function ResetPasswordPage() {
     setSuccess(null)
 
     if (password.length < 6) {
-      setError("Das Passwort muss mindestens 6 Zeichen lang sein.")
+      setError("The password must be at least 6 characters long.")
       return
     }
 
     if (password !== confirmPassword) {
-      setError("Die Passwörter stimmen nicht überein.")
+      setError("The passwords do not match.")
       return
     }
 
@@ -54,12 +54,12 @@ export default function ResetPasswordPage() {
       return
     }
 
-    setSuccess("Passwort erfolgreich geändert. Du wirst weitergeleitet…")
+    setSuccess("Password changed successfully. You will be forwarded…")
     setTimeout(() => router.push("/auth/login"), 2000)
   }
 
   return (
-    <Suspense fallback={<div className="flex min-h-svh items-center justify-center"><p>Lädt…</p></div>}>
+    <Suspense fallback={<div className="flex min-h-svh items-center justify-center"><p>Load…</p></div>}>
       <ResetPasswordForm
         password={password}
         setPassword={setPassword}

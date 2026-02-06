@@ -1,61 +1,80 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const HF_API_URL =
+  "https://api-inference.huggingface.co/models/google/flan-t5-small";
+
 export async function POST(request: NextRequest) {
   try {
-    const { question, songTitle, artistName } = await request.json();
-
-    if (!question) {
-      return NextResponse.json({ error: "Question is required" }, { status: 400 });
+    // Body auslesen
+    const body = await request.json().catch(() => null);
+    if (!body) {
+      return NextResponse.json(
+        { error: "Invalid JSON body" },
+        { status: 400 }
+      );
     }
 
+    const prompt = body.prompt || body.question;
+    if (!prompt || typeof prompt !== "string") {
+      return NextResponse.json(
+        { error: "Prompt or question is required and must be a string" },
+        { status: 400 }
+      );
+    }
+
+    // API Token prüfen
     const HF_API_TOKEN = process.env.HF_API_TOKEN;
     if (!HF_API_TOKEN) {
-      return NextResponse.json({ error: "Hugging Face API token missing" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Hugging Face API token missing" },
+        { status: 500 }
+      );
     }
 
-    const contextMessage = songTitle
-      ? `Der Nutzer fragt über den Song "${songTitle}"${artistName ? ` von ${artistName}` : ""}. `
-      : "";
-
-    const MODEL = "mistralai/Mistral-7B-Instruct-v0.1"; // funktioniert sicher
-
-    const response = await fetch(`https://router.huggingface.co/models/${MODEL}`, {
+    // Anfrage an Hugging Face
+    const hfResponse = await fetch(HF_API_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${HF_API_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        inputs: `Du bist ein hilfreicher Musik-Assistent für Maynsta, eine Musik-Streaming-Plattform. Beantworte Fragen über Musik, Songs, Künstler und Alben auf Deutsch. Halte die Antworten kurz (max. 2-3 Sätze).\n${contextMessage}${question}`,
-        parameters: { max_new_tokens: 150, return_full_text: false },
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: 120,
+          temperature: 0.7,
+        },
       }),
     });
 
-    // Nur einmal lesen
-    const text = await response.text();
-    let answer = "Keine Antwort erhalten.";
-
-    try {
-      const data = JSON.parse(text); // Versuche JSON
-      if (Array.isArray(data) && data[0]?.generated_text) {
-        answer = data[0].generated_text;
-      } else if (data?.generated_text) {
-        answer = data.generated_text;
-      } else if (data?.error) {
-        answer = `Fehler vom HF-Server: ${data.error}`;
-      }
-    } catch {
-      // Kein JSON → Plain Text
-      answer = text;
+    // Fehler von HF abfangen
+    if (!hfResponse.ok) {
+      const errorText = await hfResponse.text();
+      console.error("HuggingFace API Error:", hfResponse.status, errorText);
+      return NextResponse.json(
+        { error: "Hugging Face API request failed", details: errorText },
+        { status: hfResponse.status }
+      );
     }
 
+    // HF Response auslesen
+    const data = await hfResponse.json().catch(async () => {
+      const text = await hfResponse.text();
+      return { generated_text: text };
+    });
+
+    // Antwort extrahieren, egal ob Array oder Objekt
+    const answer =
+      (Array.isArray(data) && data[0]?.generated_text) ||
+      (data?.generated_text) ||
+      "Keine Antwort erhalten.";
+
     return NextResponse.json({ answer });
-  } catch (error) {
-    console.error("HF AI Search error:", error);
+  } catch (error: any) {
+    console.error("HuggingFace AI error:", error);
     return NextResponse.json(
-      { error: "Failed to get HF AI response" },
+      { error: "Failed to get Hugging Face response", details: error?.message || error },
       { status: 500 }
     );
   }
 }
-

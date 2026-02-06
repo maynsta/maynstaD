@@ -1,61 +1,32 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Trash2, X, Sparkles, Loader2, MessageCircle, User } from "lucide-react"
+import { Search, X, Sparkles } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { SongListItem } from "@/components/song-list-item"
-import { AlbumCard } from "@/components/album-card"
-import type { Song, Album, SearchHistory, Playlist, Profile } from "@/lib/types"
+import type { Song, Playlist } from "@/lib/types"
 import useSWR, { mutate } from "swr"
 import { debounce } from "lodash"
-import Link from "next/link"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface SearchContentProps {
-  initialSearchHistory: SearchHistory[]
   userId: string
 }
 
-export function SearchContent({ initialSearchHistory, userId }: SearchContentProps) {
+type Suggestion =
+  | { id: string; title: string; kind: "song" }
+  | { id: string; title: string; kind: "album" }
+  | { id: string; title: string; kind: "single" }
+  | { id: string; title: string; kind: "ai" }
+
+export function SearchContent({ userId }: SearchContentProps) {
   const [query, setQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<{ songs: Song[]; albums: Album[]; artists: Profile[] } | null>(null)
-  const [isSearching, setIsSearching] = useState(false)
-
-  const debouncedSearch = useCallback(
-    debounce((q: string) => {
-      handleSearch(q)
-    }, 500),
-    [],
-  )
-
-  const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setQuery(value)
-    debouncedSearch(value)
-  }
-  
-  const [aiQuestion, setAiQuestion] = useState("")
-  const [aiResponse, setAiResponse] = useState("")
-  const [isAskingAi, setIsAskingAi] = useState(false)
-  const [showAiChat, setShowAiChat] = useState(false)
-
-  const { data: searchHistory, mutate: mutateHistory } = useSWR(
-    `search-history-${userId}`,
-    async () => {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from("search_history")
-        .select("*")
-        .eq("user_id", userId)
-        .order("searched_at", { ascending: false })
-        .limit(10)
-      return data || []
-    },
-    { fallbackData: initialSearchHistory },
-  )
+  const [searchResults, setSearchResults] = useState<{ songs: Song[] }>({ songs: [] })
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   const { data: playlists } = useSWR(`playlists-${userId}`, async () => {
     const supabase = createClient()
@@ -63,272 +34,181 @@ export function SearchContent({ initialSearchHistory, userId }: SearchContentPro
     return data || []
   })
 
-  const handleSearch = useCallback(
-    async (searchQuery: string) => {
-      if (!searchQuery.trim()) {
-        setSearchResults(null)
-        return
-      }
-
-      setIsSearching(true)
-      const supabase = createClient()
-
-      await supabase.from("search_history").insert({
-        user_id: userId,
-        query: searchQuery.trim(),
-      })
-
-      const { data: songs } = await supabase
-        .from("songs")
-        .select("*, artist:profiles(*), album:albums(*)")
-        .or(`title.ilike.%${searchQuery}%,artist.display_name.ilike.%${searchQuery}%`)
-        .limit(20)
-
-      const { data: albums } = await supabase
-        .from("albums")
-        .select("*, artist:profiles(*)")
-        .ilike("title", `%${searchQuery}%`)
-        .limit(10)
-
-      const { data: artists } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("is_artist", true)
-        .or(`artist_name.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%`)
-        .limit(10)
-
-      setSearchResults({
-        songs: songs || [],
-        albums: albums || [],
-        artists: artists || [],
-      })
-
-      mutateHistory()
-      setIsSearching(false)
-    },
-    [userId, mutateHistory],
-  )
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    handleSearch(query)
-  }
-
-  const handleClearHistory = async () => {
-    const supabase = createClient()
-    await supabase.from("search_history").delete().eq("user_id", userId)
-    mutateHistory([])
-  }
-
-  const handleHistoryClick = (historyQuery: string) => {
-    setQuery(historyQuery)
-    handleSearch(historyQuery)
-  }
-
-  const handleClearSearch = () => {
-    setQuery("")
-    setSearchResults(null)
-    setShowAiChat(false)
-    setAiResponse("")
-  }
-
-  const handleAskAi = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!aiQuestion.trim()) return
-
-    setIsAskingAi(true)
-    setAiResponse("")
-
+  // 🤖 KI-Antwort (passend zu DEINER Route → { prompt })
+  const fetchAiAnswer = async (q: string) => {
+    if (!q.trim()) return
     try {
-      const firstSong = searchResults?.songs[0]
-      const response = await fetch("/api/ai-search", {
+      const res = await fetch("/api/ai-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: aiQuestion,
-          songTitle: firstSong?.title,
-          artistName: firstSong?.artist?.display_name,
-        }),
+        body: JSON.stringify({ prompt: q }), // ✅ WICHTIG
       })
-
-      const data = await response.json()
-      
-      if (data.error) {
-        setAiResponse(data.error)
-      } else {
-        setAiResponse(data.answer)
-      }
+      const data = await res.json()
+      setAiAnswer(data.answer || "Keine KI-Antwort erhalten.")
     } catch {
-      setAiResponse("Ein Fehler ist aufgetreten. Bitte versuche es erneut.")
-    } finally {
-      setIsAskingAi(false)
-      setAiQuestion("")
+      setAiAnswer("Fehler bei der KI-Anfrage.")
     }
+  }
+
+  // 🔍 Vorschläge
+  const fetchSuggestions = async (q: string) => {
+    if (!q.trim()) {
+      setSuggestions([])
+      return
+    }
+
+    const supabase = createClient()
+
+    const { data: songData } = await supabase
+      .from("songs")
+      .select("id, title, is_single")
+      .ilike("title", `${q}%`)
+      .limit(3)
+
+    const { data: albumData } = await supabase
+      .from("albums")
+      .select("id, title")
+      .ilike("title", `${q}%`)
+      .limit(2)
+
+    const songSuggestions: Suggestion[] =
+      songData?.map((s) => ({
+        id: s.id,
+        title: s.title,
+        kind: s.is_single ? "single" : "song",
+      })) || []
+
+    const albumSuggestions: Suggestion[] =
+      albumData?.map((a) => ({
+        id: a.id,
+        title: a.title,
+        kind: "album",
+      })) || []
+
+    const aiSuggestion: Suggestion = {
+      id: "ai",
+      title: `KI-Antwort zu: "${q}"`,
+      kind: "ai",
+    }
+
+    const merged: Suggestion[] = [aiSuggestion, ...songSuggestions, ...albumSuggestions].slice(0, 5)
+
+    setSuggestions(merged)
+    setShowSuggestions(true)
+  }
+
+  const debouncedSuggestions = useCallback(
+    debounce((q: string) => fetchSuggestions(q), 250),
+    []
+  )
+
+  const handleSearch = async (searchQuery: string) => {
+    if (!searchQuery.trim()) return
+
+    const supabase = createClient()
+
+    const { data: songs } = await supabase
+      .from("songs")
+      .select("*, artist:profiles(*), album:albums(*)")
+      .ilike("title", `%${searchQuery}%`)
+      .limit(20)
+
+    setSearchResults({ songs: songs || [] })
+  }
+
+  const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setQuery(value)
+    debouncedSuggestions(value)
+    handleSearch(value)
+    fetchAiAnswer(value)
+  }
+
+  const handleSuggestionClick = (s: Suggestion) => {
+    if (s.kind !== "ai") {
+      setQuery(s.title)
+      handleSearch(s.title)
+      fetchAiAnswer(s.title)
+    }
+    setShowSuggestions(false)
   }
 
   return (
     <div className="p-8">
-      <h1 className="text-3xl font-bold text-foreground mb-6">Suche</h1>
+      <h1 className="text-3xl font-bold mb-6">Suche</h1>
 
-      <form onSubmit={handleSubmit} className="mb-8">
-        <div className="flex gap-2 max-w-2xl">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Songs, Alben oder Künstler suchen..."
-              value={query}
-              onChange={handleQueryChange}
-              className="pl-10 pr-10 bg-card rounded-full"
-            />
-            {query && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                onClick={handleClearSearch}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          {searchHistory && searchHistory.length > 0 && (
-            <Button type="button" variant="outline" size="icon" onClick={handleClearHistory} title="Verlauf löschen" className="rounded-full">
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </form>
+      <div className="mb-8 max-w-2xl relative">
+        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Song, Album oder Single suchen..."
+          value={query}
+          onChange={handleQueryChange}
+          className="pl-10 pr-10 rounded-full"
+        />
+        {query && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1 h-7 w-7"
+            onClick={() => {
+              setQuery("")
+              setAiAnswer(null)
+              setSearchResults({ songs: [] })
+            }}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
 
-      {!searchResults && searchHistory && searchHistory.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-foreground mb-3">Letzte Suchen</h2>
-          <div className="flex flex-wrap gap-2">
-            {searchHistory.map((item) => (
-              <Button
-                key={item.id}
-                variant="secondary"
-                size="sm"
-                onClick={() => handleHistoryClick(item.query)}
-                className="rounded-full"
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute z-50 mt-2 w-full bg-background border rounded-[10px] shadow">
+            {suggestions.map((s) => (
+              <button
+                key={`${s.kind}-${s.id}`}
+                onClick={() => handleSuggestionClick(s)}
+                className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex justify-between items-center"
               >
-                {item.query}
-              </Button>
+                <span className="flex items-center gap-2">
+                  {s.kind === "ai" && <Sparkles className="h-4 w-4 text-primary" />}
+                  {s.title}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {s.kind === "song" && "Song"}
+                  {s.kind === "album" && "Album"}
+                  {s.kind === "single" && "Single"}
+                  {s.kind === "ai" && "KI"}
+                </span>
+              </button>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </div>
 
-      {searchResults && (
-        <div>
-          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="h-5 w-5 text-purple-500" />
-              <h3 className="font-semibold text-foreground">Frag die KI</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAiChat(!showAiChat)}
-                className="ml-auto rounded-full"
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                {showAiChat ? "Schließen" : "Frage stellen"}
-              </Button>
-            </div>
-
-            {showAiChat && (
-              <div className="space-y-3">
-                <form onSubmit={handleAskAi} className="flex gap-2">
-                  <Input
-                    placeholder="Stell eine Frage über diesen Song..."
-                    value={aiQuestion}
-                    onChange={(e) => setAiQuestion(e.target.value)}
-                    className="bg-background"
-                    disabled={isAskingAi}
-                  />
-                  <Button type="submit" disabled={isAskingAi || !aiQuestion.trim()} className="rounded-full">
-                    {isAskingAi ? <Loader2 className="h-4 w-4 animate-spin" /> : "Fragen"}
-                  </Button>
-                </form>
-
-                {aiResponse && (
-                  <div className="p-3 rounded-xl bg-background border">
-                    <p className="text-sm text-foreground">{aiResponse}</p>
-                  </div>
-                )}
-              </div>
-            )}
+      {/* 🤖 KI ganz oben */}
+      {aiAnswer && (
+        <div className="mb-6 p-4 border rounded-[10px] bg-muted">
+          <div className="flex items-center gap-2 mb-2 text-sm font-semibold">
+            <Sparkles className="h-4 w-4 text-primary" />
+            KI-Antwort
           </div>
-
-          {searchResults.songs.length === 0 && searchResults.albums.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">Keine Ergebnisse für "{query}" gefunden.</p>
-            </div>
-          ) : (
-            <>
-              {searchResults.songs.length > 0 && (
-                <section className="mb-10">
-                  <h2 className="text-xl font-semibold text-foreground mb-4">Songs</h2>
-                  <div className="space-y-1">
-                    {searchResults.songs.map((song) => (
-                      <SongListItem
-                        key={song.id}
-                        song={song}
-                        queue={searchResults.songs}
-                        playlists={(playlists as Playlist[]) || []}
-                        onPlaylistCreated={() => mutate(`playlists-${userId}`)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {searchResults.albums.length > 0 && (
-                <section className="mb-10">
-                  <h2 className="text-xl font-semibold text-foreground mb-4">Alben</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {searchResults.albums.map((album) => (
-                      <AlbumCard key={album.id} album={album} />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {searchResults.artists.length > 0 && (
-                <section>
-                  <h2 className="text-xl font-semibold text-foreground mb-4">Künstler</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {searchResults.artists.map((artist) => (
-                      <Link
-                        key={artist.id}
-                        href={`/artist/${artist.id}`}
-                        className="group flex flex-col items-center p-4 rounded-2xl hover:bg-accent transition-colors text-center"
-                      >
-                        <Avatar className="h-32 w-32 mb-4 border-2 border-border group-hover:border-primary transition-colors">
-                          <AvatarImage src={artist.avatar_url || ""} />
-                          <AvatarFallback className="text-2xl">
-                            {artist.artist_name?.[0] || artist.display_name?.[0] || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <h3 className="font-semibold text-foreground truncate w-full">
-                          {artist.artist_name || artist.display_name}
-                        </h3>
-                        <p className="text-xs text-muted-foreground">Künstler</p>
-                      </Link>
-                    ))}
-                  </div>
-                </section>
-              )}
-            </>
-          )}
+          <p className="text-sm leading-relaxed">{aiAnswer}</p>
         </div>
       )}
 
-      {!searchResults && (!searchHistory || searchHistory.length === 0) && (
-        <div className="text-center py-12">
-          <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">Suche nach deiner Lieblingsmusik</p>
-        </div>
+      {/* 🎵 Songs bleiben sichtbar */}
+      {searchResults.songs.length > 0 && (
+        <section className="space-y-1">
+          {searchResults.songs.map((song) => (
+            <SongListItem
+              key={song.id}
+              song={song}
+              queue={searchResults.songs}
+              playlists={(playlists as Playlist[]) || []}
+              onPlaylistCreated={() => mutate(`playlists-${userId}`)}
+            />
+          ))}
+        </section>
       )}
     </div>
   )

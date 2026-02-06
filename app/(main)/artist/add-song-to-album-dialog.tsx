@@ -14,9 +14,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { createClient } from "@/lib/supabase/client"
 import type { Album } from "@/lib/types"
-import { Music, Upload } from "lucide-react"
+import { Music, Upload, Mic, StopCircle, PauseCircle } from "lucide-react"
 
 interface AddSongToAlbumDialogProps {
   open: boolean
@@ -39,77 +38,123 @@ export function AddSongToAlbumDialog({
   const [hasVideo, setHasVideo] = useState(false)
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [mode, setMode] = useState<"upload" | "record" | "compose">("upload")
+  const [recording, setRecording] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordedChunksRef = useRef<Blob[]>([])
 
   const audioInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
 
+  // --- Upload / Fingerprint Check ---
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim()) return
+    if (!title.trim() || !audioFile) return
 
     setIsLoading(true)
-    const supabase = createClient()
 
-    let audioUrl: string | null = null
-    let videoUrl: string | null = null
+    try {
+      const formData = new FormData()
+      formData.append("audio", audioFile)
+      formData.append("title", title)
+      formData.append("userId", userId)
+      formData.append("albumId", album.id)
+      formData.append("isExplicit", String(isExplicit))
+      formData.append("hasVideo", String(hasVideo))
 
-    if (audioFile) {
-      const fileExt = audioFile.name.split(".").pop()
-      const fileName = `${userId}/${Date.now()}-audio.${fileExt}`
-      const { data } = await supabase.storage.from("audio").upload(fileName, audioFile)
-      if (data) {
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("audio").getPublicUrl(fileName)
-        audioUrl = publicUrl
+      const res = await fetch("/api/fingerprint-upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      const data = await res.json()
+
+      if (!data.success) {
+        alert(data.message)
+        setIsLoading(false)
+        return
       }
+
+      setTitle("")
+      setAudioFile(null)
+      setIsExplicit(false)
+      setHasVideo(false)
+      setVideoFile(null)
+      onOpenChange(false)
+      onCreated?.()
+    } catch (error) {
+      console.error(error)
+      alert("Fehler beim Hochladen")
+      setIsLoading(false)
+    }
+  }
+
+  // --- RECORD LOGIC ---
+  const startRecording = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const mediaRecorder = new MediaRecorder(stream)
+    recordedChunksRef.current = []
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunksRef.current.push(e.data)
     }
 
-    if (hasVideo && videoFile) {
-      const fileExt = videoFile.name.split(".").pop()
-      const fileName = `${userId}/${Date.now()}-video.${fileExt}`
-      const { data } = await supabase.storage.from("videos").upload(fileName, videoFile)
-      if (data) {
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("videos").getPublicUrl(fileName)
-        videoUrl = publicUrl
-      }
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" })
+      const file = new File([blob], `recorded-${Date.now()}.webm`, { type: "audio/webm" })
+      setAudioFile(file)
     }
 
-    await supabase.from("songs").insert({
-      album_id: album.id,
-      artist_id: userId,
-      title: title.trim(),
-      cover_url: album.cover_url,
-      audio_url: audioUrl,
-      is_explicit: isExplicit,
-      has_music_video: hasVideo,
-      music_video_url: videoUrl,
-      duration: 180,
-    })
+    mediaRecorder.start()
+    mediaRecorderRef.current = mediaRecorder
+    setRecording(true)
+    setPaused(false)
+  }
 
-    setTitle("")
-    setAudioFile(null)
-    setIsExplicit(false)
-    setHasVideo(false)
-    setVideoFile(null)
-    setIsLoading(false)
-    onOpenChange(false)
-    onCreated?.()
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop()
+    setRecording(false)
+    setPaused(false)
+  }
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.pause()
+      setPaused(true)
+    }
+  }
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "paused") {
+      mediaRecorderRef.current.resume()
+      setPaused(false)
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md rounded-[10px]">
         <DialogHeader>
-          <DialogTitle>
-            Song zu &quot;{album.title}&quot; hinzufügen
-          </DialogTitle>
+          <DialogTitle>Song zu &quot;{album.title}&quot; hinzufügen</DialogTitle>
           <DialogDescription>
-            Füge einen neuen Song zu diesem Album hinzu.
+            Wähle eine Methode, um einen neuen Song hinzuzufügen.
           </DialogDescription>
         </DialogHeader>
+
+        {/* MODE SWITCHER */}
+        <div className="flex justify-around py-2">
+          {["upload", "record", "compose"].map((m) => (
+            <Button
+              key={m}
+              variant={mode === m ? "default" : "outline"}
+              onClick={() => setMode(m as any)}
+              className="rounded-[10px] px-4"
+            >
+              {m === "upload" ? "Upload" : m === "record" ? "Record" : "Compose"}
+            </Button>
+          ))}
+        </div>
 
         <form onSubmit={handleCreate}>
           <div className="grid gap-4 py-4">
@@ -125,25 +170,72 @@ export function AddSongToAlbumDialog({
               />
             </div>
 
-            <div className="grid gap-2">
-              <Label>Audio Datei (MP3, WAV, MPA)</Label>
-              <input
-                ref={audioInputRef}
-                type="file"
-                accept=".mp3,.wav,.mpa"
-                onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-[10px] justify-start bg-transparent"
-                onClick={() => audioInputRef.current?.click()}
-              >
-                <Music className="h-4 w-4 mr-2" />
-                {audioFile ? audioFile.name : "Audio hochladen"}
-              </Button>
-            </div>
+            {/* UPLOAD MODE */}
+            {mode === "upload" && (
+              <div className="grid gap-2">
+                <Label>Audio Datei (MP3, WAV, MPA)</Label>
+                <input
+                  ref={audioInputRef}
+                  type="file"
+                  accept=".mp3,.wav,.mpa"
+                  onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-[10px] justify-start bg-transparent"
+                  onClick={() => audioInputRef.current?.click()}
+                >
+                  <Music className="h-4 w-4 mr-2" />
+                  {audioFile ? audioFile.name : "Audio hochladen"}
+                </Button>
+              </div>
+            )}
+
+            {/* RECORD MODE */}
+            {mode === "record" && (
+              <div className="grid gap-2 text-center">
+                <Label>Aufnahme</Label>
+                <div className="flex justify-center gap-2">
+                  {!recording && (
+                    <Button onClick={startRecording} variant="outline" className="rounded-[10px]">
+                      <Mic className="h-4 w-4 mr-2" /> Record
+                    </Button>
+                  )}
+                  {recording && !paused && (
+                    <Button onClick={pauseRecording} variant="destructive" className="rounded-[10px]">
+                      <PauseCircle className="h-4 w-4 mr-2" /> Pause
+                    </Button>
+                  )}
+                  {recording && paused && (
+                    <Button onClick={resumeRecording} variant="outline" className="rounded-[10px]">
+                      <Mic className="h-4 w-4 mr-2" /> Resume
+                    </Button>
+                  )}
+                  {recording && (
+                    <Button onClick={stopRecording} variant="default" className="rounded-[10px]">
+                      <StopCircle className="h-4 w-4 mr-2" /> Stop
+                    </Button>
+                  )}
+                </div>
+                {audioFile && <p className="text-sm mt-2 text-muted-foreground">Aufnahme bereit: {audioFile.name}</p>}
+              </div>
+            )}
+
+            {/* COMPOSE MODE */}
+            {mode === "compose" && (
+              <div className="grid gap-2 text-center">
+                <Button
+                  type="button"
+                  variant="default"
+                  className="rounded-[10px]"
+                  onClick={() => window.open("https://studio.maynsta.com", "_blank")}
+                >
+                  Compose on Maynsta Studio
+                </Button>
+              </div>
+            )}
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
@@ -210,4 +302,3 @@ export function AddSongToAlbumDialog({
     </Dialog>
   )
 }
-

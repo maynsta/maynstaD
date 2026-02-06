@@ -1,9 +1,6 @@
-'use client'
-
 "use client"
 
-import type React from "react"
-
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,8 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
-import { Music } from "lucide-react"
+import { Music, X } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -21,35 +18,47 @@ export default function SignUpPage() {
   const [displayName, setDisplayName] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const router = useRouter()
+
+  // ✅ Nur redirect wenn schon eingeloggt
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.push("/home")
+    })
+  }, [router])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!acceptedPrivacy) {
+      setError("You must accept the privacy policy")
+      return
+    }
+
+    if (password !== repeatPassword) {
+      setError("Passwords do not match")
+      return
+    }
+
     const supabase = createClient()
     setIsLoading(true)
     setError(null)
-
-    if (password !== repeatPassword) {
-      setError("Passwörter stimmen nicht überein")
-      setIsLoading(false)
-      return
-    }
 
     try {
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/home`,
-          data: {
-            display_name: displayName,
-          },
+          emailRedirectTo: "https://maynsta.com/home",
+          data: { display_name: displayName },
         },
       })
       if (error) throw error
       router.push("/auth/sign-up-success")
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Ein Fehler ist aufgetreten")
+    } catch (err: any) {
+      setError(err.message || "An error occurred")
     } finally {
       setIsLoading(false)
     }
@@ -63,33 +72,11 @@ export default function SignUpPage() {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/home`,
-        },
+        options: { redirectTo: "https://maynsta.com/home" },
       })
       if (error) throw error
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Ein Fehler ist aufgetreten")
-      setIsLoading(false)
-    }
-  }
-
-  const handleMicrosoftSignUp = async () => {
-    const supabase = createClient()
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "azure",
-        options: {
-          redirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/home`,
-          scopes: "email",
-        },
-      })
-      if (error) throw error
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Ein Fehler ist aufgetreten")
+    } catch (err: any) {
+      setError(err.message || "Google login failed")
       setIsLoading(false)
     }
   }
@@ -98,136 +85,156 @@ export default function SignUpPage() {
     <div className="flex min-h-svh w-full items-center justify-center bg-background p-6 md:p-10">
       <div className="w-full max-w-sm">
         <div className="flex flex-col gap-6">
+
+          {/* Logo */}
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary">
               <Music className="h-6 w-6 text-primary-foreground" />
             </div>
             <span className="text-2xl font-bold text-foreground">Maynsta</span>
           </div>
+
           <Card className="border-border bg-card rounded-3xl">
             <CardHeader>
-              <CardTitle className="text-2xl text-card-foreground">Registrieren</CardTitle>
-              <CardDescription>Erstelle ein neues Konto</CardDescription>
+              <CardTitle className="text-2xl">Sign-Up</CardTitle>
+              <CardDescription>Create a new account</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSignUp}>
-                <div className="flex flex-col gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="displayName">Anzeigename</Label>
-                    <Input
-                      id="displayName"
-                      type="text"
-                      placeholder="Dein Name"
-                      required
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      className="bg-background rounded-full"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">E-Mail</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="name@beispiel.de"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="bg-background rounded-full"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Passwort</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="bg-background rounded-full"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="repeat-password">Passwort wiederholen</Label>
-                    <Input
-                      id="repeat-password"
-                      type="password"
-                      required
-                      value={repeatPassword}
-                      onChange={(e) => setRepeatPassword(e.target.value)}
-                      className="bg-background rounded-full"
-                    />
-                  </div>
-                  {error && <p className="text-sm text-destructive">{error}</p>}
-                  <Button type="submit" className="w-full rounded-full" disabled={isLoading}>
-                    {isLoading ? "Konto wird erstellt..." : "Registrieren"}
-                  </Button>
+              <form onSubmit={handleSignUp} className="flex flex-col gap-6">
 
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t border-border" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">oder weiter mit</span>
-                    </div>
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="displayName">Viewing name</Label>
+                  <Input id="displayName" value={displayName} onChange={e => setDisplayName(e.target.value)} required />
+                </div>
 
-                  <div className="grid gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full rounded-full bg-transparent"
-                      onClick={handleGoogleSignUp}
-                      disabled={isLoading}
-                    >
-                      <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                        <path
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                          fill="#4285F4"
-                        />
-                        <path
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                          fill="#34A853"
-                        />
-                        <path
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                          fill="#FBBC05"
-                        />
-                        <path
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                          fill="#EA4335"
-                        />
-                      </svg>
-                      Mit Google registrieren
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full rounded-full bg-transparent"
-                      onClick={handleMicrosoftSignUp}
-                      disabled={isLoading}
-                    >
-                      <svg className="mr-2 h-4 w-4" viewBox="0 0 23 23">
-                        <path fill="#f35325" d="M1 1h10v10H1z" />
-                        <path fill="#81bc06" d="M12 1h10v10H12z" />
-                        <path fill="#05a6f0" d="M1 12h10v10H1z" />
-                        <path fill="#ffba08" d="M12 12h10v10H12z" />
-                      </svg>
-                      Mit Microsoft registrieren
-                    </Button>
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="email">E-Mail</Label>
+                  <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
                 </div>
-                <div className="mt-4 text-center text-sm text-muted-foreground">
-                  Bereits ein Konto?{" "}
-                  <Link href="/auth/login" className="text-primary underline underline-offset-4">
-                    Anmelden
-                  </Link>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
                 </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="repeat">Repeat password</Label>
+                  <Input id="repeat" type="password" value={repeatPassword} onChange={e => setRepeatPassword(e.target.value)} required />
+                </div>
+
+                {/* Privacy */}
+                <div className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={acceptedPrivacy} onChange={e => setAcceptedPrivacy(e.target.checked)} />
+                  <span>
+                    I accept the{" "}
+                    <button type="button" className="underline text-blue-500" onClick={() => setShowPrivacyModal(true)}>
+                      privacy policy
+                    </button>
+                  </span>
+                </div>
+
+                {error && <p className="text-sm text-red-500">{error}</p>}
+
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Creating account..." : "Sign-Up"}
+                </Button>
+
+                <Button type="button" variant="outline" onClick={handleGoogleSignUp}>
+                  Continue with Google
+                </Button>
+
+                <div className="text-center text-sm">
+                  Already have an account?{" "}
+                  <Link href="/auth/login" className="underline text-primary">Log-In</Link>
+                </div>
+
               </form>
             </CardContent>
           </Card>
         </div>
       </div>
+
+{/* Privacy Modal */}
+<AnimatePresence>
+  {showPrivacyModal && (
+    <motion.div
+      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="bg-card rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto relative"
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+      >
+        <button
+          className="absolute top-3 right-3 text-foreground"
+          onClick={() => setShowPrivacyModal(false)}
+        >
+          <X />
+        </button>
+
+        <div className="space-y-3 text-sm text-foreground">
+          <p className="font-bold">Privacy Policy</p>
+          <p>Updated on: January 30, 2026</p>
+
+          <p><strong>1. General</strong></p>
+          <p>
+            At Maynsta, we take the protection of your personal data very seriously.
+            These privacy policies explain what data we collect, how we use it, and what rights you have as a user.
+          </p>
+
+          <p><strong>2. Collection and use of data</strong></p>
+          <p>2.1 We store personal information solely to create, manage, and provide our service to your account.</p>
+          <p>2.2 We need the following data to create an account:</p>
+
+          <ul className="list-disc list-inside">
+            <li>Name (or stage name)</li>
+            <li>Email address</li>
+            <li>Password</li>
+          </ul>
+
+          <p>2.3 We recommend using secure login credentials:</p>
+          <ul className="list-disc list-inside">
+            <li>Password at least 8 characters</li>
+            <li>No sharing of the password with third parties</li>
+            <li>Use your data responsibly</li>
+          </ul>
+
+          <p><strong>3. Storage and Security</strong></p>
+          <p>3.1 Your data is stored in secure databases and protected against unauthorized access.</p>
+          <p>3.2 In case of a security incident we inform you within 72 hours if required by law.</p>
+
+          <p><strong>4. Deletion and management</strong></p>
+          <p>4.1 You can delete your account anytime under Account → Delete Account.</p>
+
+          <p><strong>5. Sharing data</strong></p>
+          <p>We do not sell or publish your data to third parties.</p>
+
+          <p><strong>6. Your rights</strong></p>
+          <ul className="list-disc list-inside">
+            <li>Information</li>
+            <li>Correction</li>
+            <li>Deletion</li>
+            <li>Restriction</li>
+            <li>Objection</li>
+            <li>Data portability</li>
+          </ul>
+
+          <p>Contact: ceo@maynsta.com</p>
+          <p className="pt-2 text-xs">
+            Maynsta Cooperation © 2026<br />
+            Mayn Inc. ® 2026
+          </p>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+
     </div>
   )
 }
+

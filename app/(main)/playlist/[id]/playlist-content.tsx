@@ -48,7 +48,8 @@ export function PlaylistContent({
   profile,
   userId,
 }: PlaylistContentProps) {
-  const { setQueue, currentSong, isPlaying, togglePlay } = usePlayer()
+  // ⚡ setQueue existiert nicht, wir nutzen play()
+  const { play, currentSong, isPlaying, togglePlay } = usePlayer()
   const router = useRouter()
 
   const { data: playlistSongs } = useSWR(
@@ -75,9 +76,11 @@ export function PlaylistContent({
     if (isCurrentPlaylist && isPlaying) {
       togglePlay()
     } else {
-      setQueue(songs, 0)
+      // ⚡ starte den ersten Song und übergebe die gesamte Playlist als Queue
+      play(songs[0], songs)
     }
   }
+
 
   const handleDeletePlaylist = async () => {
     const supabase = createClient()
