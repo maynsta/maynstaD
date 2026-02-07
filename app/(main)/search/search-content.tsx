@@ -153,7 +153,7 @@ export function SearchContent({ userId }: SearchContentProps) {
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">Suche</h1>
 
-      {!artistDetailActive ? (
+      {!artistDetailActive && (
         <>
           <div className="mb-8 max-w-2xl relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -213,6 +213,30 @@ export function SearchContent({ userId }: SearchContentProps) {
               <p className="text-sm leading-relaxed">{aiAnswer}</p>
             </div>
           )}
+        </>
+      )}
+
+      <ArtistSearchContent
+        artists={searchResults.artists}
+        userId={userId}
+        playlists={(playlists as Playlist[]) || []}
+        query={query}
+        onDetailChange={setArtistDetailActive}
+      />
+
+      {!artistDetailActive && searchResults.songs.length > 0 && (
+        <section className="space-y-1">
+          {searchResults.songs.map((song) => (
+            <SongListItem
+              key={song.id}
+              song={song}
+              queue={searchResults.songs}
+              playlists={(playlists as Playlist[]) || []}
+              onPlaylistCreated={() => mutate(`playlists-${userId}`)}
+            />
+          ))}
+        </section>
+      )}
 
           <ArtistSearchContent
             artists={searchResults.artists}

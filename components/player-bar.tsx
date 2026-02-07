@@ -1,15 +1,33 @@
 "use client"
 
 import { usePlayer } from "@/contexts/player-context"
-import { Play, Pause, SkipBack, SkipForward, Music, Shuffle, Repeat, MoreHorizontal } from "lucide-react"
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Music,
+  Shuffle,
+  Repeat,
+  MoreHorizontal,
+  Plus,
+  ListPlus,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useState } from "react"
+import { CreatePlaylistDialog } from "@/components/create-playlist-dialog"
+import { createClient } from "@/lib/supabase/client"
+import useSWR, { mutate } from "swr"
+import type { Playlist } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast"
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds)) return "0:00"
@@ -19,6 +37,8 @@ function formatTime(seconds: number): string {
 }
 
 export function PlayerBar() {
+  const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
+  const { toast } = useToast()
   const {
     currentSong,
     isPlaying,
@@ -33,6 +53,100 @@ export function PlayerBar() {
     isShuffled,
     repeatMode,
   } = usePlayer()
+  const { data: playlists } = useSWR("player-playlists", async () => {
+    const supabase = createClient()
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData?.user?.id
+    if (!userId) return []
+    const { data } = await supabase.from("playlists").select("*").eq("user_id", userId)
+    return data || []
+  })
+
+  const handleAddToLibrary = async () => {
+    if (!currentSong) return
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      toast({
+        title: "Fehler",
+        description: "Du musst eingeloggt sein.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const { data: existing } = await supabase
+      .from("library_items")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("song_id", currentSong.id)
+      .maybeSingle()
+
+    if (existing) {
+      toast({
+        title: "Info",
+        description: "Song ist bereits in deiner Bibliothek.",
+      })
+      return
+    }
+
+    const { error } = await supabase.from("library_items").insert({
+      user_id: user.id,
+      song_id: currentSong.id,
+    })
+
+    if (error) {
+      toast({
+        title: "Fehler",
+        description: "Konnte nicht zur Bibliothek hinzugefügt werden.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    toast({
+      title: "Hinzugefügt",
+      description: `"${currentSong.title}" wurde zur Bibliothek hinzugefügt.`,
+    })
+  }
+
+  const handleAddToPlaylist = async (playlistId: string) => {
+    if (!currentSong) return
+    const supabase = createClient()
+
+    const { data: existingSongs } = await supabase
+      .from("playlist_songs")
+      .select("position")
+      .eq("playlist_id", playlistId)
+      .order("position", { ascending: false })
+      .limit(1)
+
+    const nextPosition =
+      existingSongs && existingSongs.length > 0 ? existingSongs[0].position + 1 : 0
+
+    const { error } = await supabase.from("playlist_songs").insert({
+      playlist_id: playlistId,
+      song_id: currentSong.id,
+      position: nextPosition,
+    })
+
+    if (error) {
+      toast({
+        title: "Fehler",
+        description: "Konnte nicht zur Playlist hinzugefügt werden.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    toast({
+      title: "Hinzugefügt",
+      description: `"${currentSong.title}" wurde zur Playlist hinzugefügt.`,
+    })
+  }
 
   if (!currentSong) {
     return (
@@ -138,11 +252,38 @@ export function PlayerBar() {
                     {repeatMode === "all" && "Alle"}
                   </span>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleAddToLibrary}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Zur Bibliothek hinzufügen
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowCreatePlaylist(true)}>
+                  <ListPlus className="h-4 w-4 mr-2" />
+                  Playlist erstellen
+                </DropdownMenuItem>
+                {(playlists as Playlist[])?.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    {(playlists as Playlist[]).map((playlist) => (
+                      <DropdownMenuItem
+                        key={playlist.id}
+                        onClick={() => handleAddToPlaylist(playlist.id)}
+                      >
+                        {playlist.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
       </div>
+      <CreatePlaylistDialog
+        open={showCreatePlaylist}
+        onOpenChange={setShowCreatePlaylist}
+        onCreated={() => mutate("player-playlists")}
+      />
     </div>
   )
 }
