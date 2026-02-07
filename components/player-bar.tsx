@@ -1,9 +1,15 @@
 "use client"
 
 import { usePlayer } from "@/contexts/player-context"
-import { Play, Pause, SkipBack, SkipForward, Music, Shuffle, Repeat } from "lucide-react"
+import { Play, Pause, SkipBack, SkipForward, Music, Shuffle, Repeat, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds)) return "0:00"
@@ -85,15 +91,6 @@ export function PlayerBar() {
           {/* Controls */}
           <div className="flex flex-1 flex-col items-center gap-1">
             <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleShuffle}
-                className={isShuffled ? "text-primary" : ""}
-              >
-                <Shuffle className="h-4 w-4" />
-              </Button>
-
               <Button variant="ghost" size="icon" onClick={prev}>
                 <SkipBack className="h-4 w-4" />
               </Button>
@@ -110,19 +107,40 @@ export function PlayerBar() {
               <Button variant="ghost" size="icon" onClick={next}>
                 <SkipForward className="h-4 w-4" />
               </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleRepeat}
-                className={repeatMode !== "off" ? "text-primary" : ""}
-              >
-                <Repeat className="h-4 w-4" />
-              </Button>
             </div>
           </div>
 
-          <div className="w-1/4" />
+          <div className="flex w-1/4 justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={toggleShuffle} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Shuffle className="h-4 w-4" />
+                    Shuffle
+                  </span>
+                  <span className={isShuffled ? "text-primary" : "text-muted-foreground"}>
+                    {isShuffled ? "An" : "Aus"}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={toggleRepeat} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Repeat className="h-4 w-4" />
+                    Repeat
+                  </span>
+                  <span className={repeatMode !== "off" ? "text-primary" : "text-muted-foreground"}>
+                    {repeatMode === "off" && "Aus"}
+                    {repeatMode === "one" && "1x"}
+                    {repeatMode === "all" && "Alle"}
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
     </div>
