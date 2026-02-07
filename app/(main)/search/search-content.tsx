@@ -237,6 +237,31 @@ export function SearchContent({ userId }: SearchContentProps) {
           ))}
         </section>
       )}
+
+          <ArtistSearchContent
+            artists={searchResults.artists}
+            userId={userId}
+            playlists={(playlists as Playlist[]) || []}
+            query={query}
+            onDetailChange={setArtistDetailActive}
+          />
+
+          {/* 🎵 Songs bleiben sichtbar */}
+          {searchResults.songs.length > 0 && (
+            <section className="space-y-1">
+              {searchResults.songs.map((song) => (
+                <SongListItem
+                  key={song.id}
+                  song={song}
+                  queue={searchResults.songs}
+                  playlists={(playlists as Playlist[]) || []}
+                  onPlaylistCreated={() => mutate(`playlists-${userId}`)}
+                />
+              ))}
+            </section>
+          )}
+        </>
+      ) : null}
     </div>
   )
 }
