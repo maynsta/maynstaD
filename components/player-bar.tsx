@@ -28,6 +28,7 @@ import { createClient } from "@/lib/supabase/client"
 import useSWR, { mutate } from "swr"
 import type { Playlist } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds)) return "0:00"
@@ -36,7 +37,13 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`
 }
 
-export function PlayerBar() {
+interface PlayerBarProps {
+  variant?: "bar" | "sidebar"
+  className?: string
+}
+
+export function PlayerBar({ variant = "bar", className }: PlayerBarProps) {
+  const isSidebar = variant === "sidebar"
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
   const { toast } = useToast()
   const {
@@ -150,8 +157,15 @@ export function PlayerBar() {
 
   if (!currentSong) {
     return (
-      <div className="fixed bottom-0 left-0 w-screen z-50 h-20 border-t border-border bg-card">
-        <div className="flex h-full items-center justify-center text-muted-foreground">
+      <div
+        className={cn(
+          isSidebar
+            ? "w-full border-t border-border bg-card"
+            : "fixed bottom-0 left-0 w-screen z-50 h-20 border-t border-border bg-card",
+          className
+        )}
+      >
+        <div className="flex h-full items-center justify-center text-muted-foreground py-4">
           <p className="text-sm">Wähle einen Song aus, um Musik zu hören</p>
         </div>
       </div>
@@ -159,10 +173,22 @@ export function PlayerBar() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 w-screen z-50 border-t border-border bg-card">
-      <div className="flex flex-col items-center px-4 py-2">
+    <div
+      className={cn(
+        isSidebar
+          ? "w-full border-t border-border bg-card"
+          : "fixed bottom-0 left-0 w-screen z-50 border-t border-border bg-card",
+        className
+      )}
+    >
+      <div className={cn("flex flex-col items-center px-4 py-2", isSidebar && "gap-2")}>
         {/* Progressbar über allem */}
-        <div className="flex w-full max-w-md items-center gap-2 mb-2">
+        <div
+          className={cn(
+            "flex w-full items-center gap-2 mb-2",
+            isSidebar ? "max-w-[220px]" : "max-w-md"
+          )}
+        >
           <span className="text-xs text-muted-foreground w-10 text-right">
             {formatTime(currentTime)}
           </span>
@@ -182,7 +208,7 @@ export function PlayerBar() {
 
         <div className="flex w-full items-center justify-between">
           {/* Song info */}
-          <div className="flex w-1/4 items-center gap-3">
+          <div className={cn("flex items-center gap-3", isSidebar ? "w-full" : "w-1/4")}>
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted overflow-hidden">
               {currentSong.cover_url ? (
                 <img
@@ -203,8 +229,8 @@ export function PlayerBar() {
           </div>
 
           {/* Controls */}
-          <div className="flex flex-1 flex-col items-center gap-1">
-            <div className="flex items-center gap-4">
+          <div className={cn("flex flex-1 flex-col items-center gap-1", isSidebar && "mt-2")}>
+            <div className={cn("flex items-center gap-4", isSidebar && "flex-wrap justify-center")}>
               <Button variant="ghost" size="icon" onClick={prev}>
                 <SkipBack className="h-4 w-4" />
               </Button>
@@ -224,7 +250,7 @@ export function PlayerBar() {
             </div>
           </div>
 
-          <div className="flex w-1/4 justify-end">
+          <div className={cn("flex justify-end", isSidebar ? "w-auto" : "w-1/4")}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
