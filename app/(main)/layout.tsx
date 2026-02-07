@@ -29,7 +29,9 @@ export default async function MainLayout({
               {children}
             </div>
           </MainContent>
-          <PlayerBar />
+          <div className="min-[1440px]:hidden">
+            <PlayerBar />
+          </div>
         </div>
       </SidebarProvider>
     </PlayerProvider>
