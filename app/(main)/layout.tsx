@@ -6,6 +6,8 @@ import { SidebarProvider } from "@/contexts/sidebar-context"
 import { MainContent } from "@/components/main-content"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export default async function MainLayout({
   children,
@@ -23,13 +25,20 @@ export default async function MainLayout({
     <PlayerProvider>
       <SidebarProvider>
         <div className="flex h-screen bg-background text-foreground overflow-hidden">
+          <div className="fixed top-4 right-4 z-40">
+            <Button asChild className="rounded-full">
+              <Link href="/install">Install the App!</Link>
+            </Button>
+          </div>
           <Sidebar />
           <MainContent>
             <div className="min-h-[120vh] pb-32">
               {children}
             </div>
           </MainContent>
-          <PlayerBar />
+          <div className="min-[1440px]:hidden">
+            <PlayerBar />
+          </div>
         </div>
       </SidebarProvider>
     </PlayerProvider>

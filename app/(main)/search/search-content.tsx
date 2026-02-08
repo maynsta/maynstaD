@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Search, X, Sparkles } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { SongListItem } from "@/components/song-list-item"
-import type { Song, Playlist } from "@/lib/types"
+import type { Song, Playlist, Profile } from "@/lib/types"
 import useSWR, { mutate } from "swr"
 import { debounce } from "lodash"
+import { ArtistSearchContent } from "./artist-search-content"
 
 interface SearchContentProps {
   userId: string
+  initialSearchHistory?: unknown[]
 }
 
 type Suggestion =
@@ -23,10 +25,14 @@ type Suggestion =
 
 export function SearchContent({ userId }: SearchContentProps) {
   const [query, setQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<{ songs: Song[] }>({ songs: [] })
+  const [searchResults, setSearchResults] = useState<{ songs: Song[]; artists: Profile[] }>({
+    songs: [],
+    artists: [],
+  })
   const [aiAnswer, setAiAnswer] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [artistDetailActive, setArtistDetailActive] = useState(false)
 
   const { data: playlists } = useSWR(`playlists-${userId}`, async () => {
     const supabase = createClient()
@@ -103,7 +109,10 @@ export function SearchContent({ userId }: SearchContentProps) {
   )
 
   const handleSearch = async (searchQuery: string) => {
-    if (!searchQuery.trim()) return
+    if (!searchQuery.trim()) {
+      setSearchResults({ songs: [], artists: [] })
+      return
+    }
 
     const supabase = createClient()
 
@@ -113,7 +122,14 @@ export function SearchContent({ userId }: SearchContentProps) {
       .ilike("title", `%${searchQuery}%`)
       .limit(20)
 
-    setSearchResults({ songs: songs || [] })
+    const { data: artists } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("is_artist", true)
+      .or(`artist_name.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%`)
+      .limit(5)
+
+    setSearchResults({ songs: songs || [], artists: artists || [] })
   }
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,70 +150,82 @@ export function SearchContent({ userId }: SearchContentProps) {
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold mb-6">Suche</h1>
+    <div className="p-8 flex flex-col items-center">
+      <div className="w-full max-w-4xl">
+        <h1 className="text-3xl font-bold mb-6 text-center">Suche</h1>
 
-      <div className="mb-8 max-w-2xl relative">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Song, Album oder Single suchen..."
-          value={query}
-          onChange={handleQueryChange}
-          className="pl-10 pr-10 rounded-full"
-        />
-        {query && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="absolute right-1 top-1 h-7 w-7"
-            onClick={() => {
-              setQuery("")
-              setAiAnswer(null)
-              setSearchResults({ songs: [] })
-            }}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-
-        {showSuggestions && suggestions.length > 0 && (
-          <div className="absolute z-50 mt-2 w-full bg-background border rounded-[10px] shadow">
-            {suggestions.map((s) => (
-              <button
-                key={`${s.kind}-${s.id}`}
-                onClick={() => handleSuggestionClick(s)}
-                className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex justify-between items-center"
+      {!artistDetailActive && (
+        <>
+          <div className="mb-8 max-w-2xl relative mx-auto">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Song, Album oder Single suchen..."
+              value={query}
+              onChange={handleQueryChange}
+              className="pl-10 pr-10 rounded-full"
+            />
+            {query && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1 h-7 w-7"
+                onClick={() => {
+                  setQuery("")
+                  setAiAnswer(null)
+                  setSearchResults({ songs: [], artists: [] })
+                }}
               >
-                <span className="flex items-center gap-2">
-                  {s.kind === "ai" && <Sparkles className="h-4 w-4 text-primary" />}
-                  {s.title}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {s.kind === "song" && "Song"}
-                  {s.kind === "album" && "Album"}
-                  {s.kind === "single" && "Single"}
-                  {s.kind === "ai" && "KI"}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+                <X className="h-4 w-4" />
+              </Button>
+            )}
 
-      {/* 🤖 KI ganz oben */}
-      {aiAnswer && (
-        <div className="mb-6 p-4 border rounded-[10px] bg-muted">
-          <div className="flex items-center gap-2 mb-2 text-sm font-semibold">
-            <Sparkles className="h-4 w-4 text-primary" />
-            KI-Antwort
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-50 mt-2 w-full bg-background border rounded-[10px] shadow">
+                {suggestions.map((s) => (
+                  <button
+                    key={`${s.kind}-${s.id}`}
+                    onClick={() => handleSuggestionClick(s)}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex justify-between items-center"
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      {s.kind === "ai" && <Sparkles className="h-4 w-4 text-primary" />}
+                      <span className="truncate">{s.title}</span>
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {s.kind === "song" && "Song"}
+                      {s.kind === "album" && "Album"}
+                      {s.kind === "single" && "Single"}
+                      {s.kind === "ai" && "KI"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <p className="text-sm leading-relaxed">{aiAnswer}</p>
-        </div>
+
+          {/* 🤖 KI ganz oben */}
+          {aiAnswer && (
+            <div className="mb-6 p-4 border rounded-[10px] bg-muted">
+              <div className="flex items-center gap-2 mb-2 text-sm font-semibold">
+                <Sparkles className="h-4 w-4 text-primary" />
+                KI-Antwort
+              </div>
+              <p className="text-sm leading-relaxed">{aiAnswer}</p>
+            </div>
+          )}
+        </>
       )}
 
-      {/* 🎵 Songs bleiben sichtbar */}
-      {searchResults.songs.length > 0 && (
+          <ArtistSearchContent
+            artists={searchResults.artists}
+            userId={userId}
+            playlists={(playlists as Playlist[]) || []}
+            query={query}
+            onDetailChange={setArtistDetailActive}
+          />
+
+      {!artistDetailActive && searchResults.songs.length > 0 && (
         <section className="space-y-1">
           {searchResults.songs.map((song) => (
             <SongListItem
@@ -210,6 +238,7 @@ export function SearchContent({ userId }: SearchContentProps) {
           ))}
         </section>
       )}
+      </div>
     </div>
   )
 }

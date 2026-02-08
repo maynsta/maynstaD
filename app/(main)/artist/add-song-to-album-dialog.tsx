@@ -55,27 +55,6 @@ export function AddSongToAlbumDialog({
     setIsLoading(true)
 
     try {
-      const formData = new FormData()
-      formData.append("audio", audioFile)
-      formData.append("title", title)
-      formData.append("userId", userId)
-      formData.append("albumId", album.id)
-      formData.append("isExplicit", String(isExplicit))
-      formData.append("hasVideo", String(hasVideo))
-
-      const res = await fetch("/api/fingerprint-upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      const data = await res.json()
-
-      if (!data.success) {
-        alert(data.message)
-        setIsLoading(false)
-        return
-      }
-
       setTitle("")
       setAudioFile(null)
       setIsExplicit(false)
@@ -86,8 +65,8 @@ export function AddSongToAlbumDialog({
     } catch (error) {
       console.error(error)
       alert("Fehler beim Hochladen")
-      setIsLoading(false)
     }
+    setIsLoading(false)
   }
 
   // --- RECORD LOGIC ---
