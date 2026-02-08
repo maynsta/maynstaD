@@ -150,6 +150,13 @@ export function SearchContent({ userId }: SearchContentProps) {
   }
 
   return (
+    <div className="p-8 flex flex-col items-center">
+      <div className="w-full max-w-4xl">
+        <h1 className="text-3xl font-bold mb-6 text-center">Suche</h1>
+
+      {!artistDetailActive && (
+        <>
+          <div className="mb-8 max-w-2xl relative mx-auto">
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">Suche</h1>
 
@@ -187,6 +194,9 @@ export function SearchContent({ userId }: SearchContentProps) {
                     onClick={() => handleSuggestionClick(s)}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex justify-between items-center"
                   >
+                    <span className="flex items-center gap-2 truncate">
+                      {s.kind === "ai" && <Sparkles className="h-4 w-4 text-primary" />}
+                      <span className="truncate">{s.title}</span>
                     <span className="flex items-center gap-2">
                       {s.kind === "ai" && <Sparkles className="h-4 w-4 text-primary" />}
                       {s.title}
@@ -216,6 +226,13 @@ export function SearchContent({ userId }: SearchContentProps) {
         </>
       )}
 
+          <ArtistSearchContent
+            artists={searchResults.artists}
+            userId={userId}
+            playlists={(playlists as Playlist[]) || []}
+            query={query}
+            onDetailChange={setArtistDetailActive}
+          />
       <ArtistSearchContent
         artists={searchResults.artists}
         userId={userId}
@@ -237,6 +254,7 @@ export function SearchContent({ userId }: SearchContentProps) {
           ))}
         </section>
       )}
+      </div>
 
           <ArtistSearchContent
             artists={searchResults.artists}

@@ -97,21 +97,21 @@ export function ArtistProfileContent({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col items-center">
       <div className="relative h-80 w-full overflow-hidden bg-gradient-to-b from-primary/20 to-background flex items-end p-8">
-        <div className="flex items-center gap-8">
+        <div className="flex w-full max-w-5xl items-center justify-center gap-8">
           <Avatar className="h-48 w-48 border-4 border-background shadow-2xl">
             <AvatarImage src={artist.avatar_url || ""} />
             <AvatarFallback className="text-4xl">
               {artist.artist_name?.[0] || artist.display_name?.[0] || "?"}
             </AvatarFallback>
           </Avatar>
-          <div>
+          <div className="text-center">
             <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">
               Verifizierter Künstler
             </p>
             <h1 className="text-6xl font-black mb-4">{artist.artist_name || artist.display_name}</h1>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 justify-center">
               <Button onClick={toggleSave} variant={isSaved ? "secondary" : "default"} disabled={isSaving} className="rounded-full">
                 <Heart className={`h-4 w-4 mr-2 ${isSaved ? "fill-primary text-primary" : ""}`} />
                 {isSaved ? "In Bibliothek" : "Folgen"}
@@ -121,18 +121,20 @@ export function ArtistProfileContent({
         </div>
       </div>
 
-      <div className="p-8 space-y-12">
+      <div className="p-8 space-y-12 w-full max-w-5xl">
         {artist.artist_bio && (
           <section>
             <h2 className="text-2xl font-bold mb-4">Über</h2>
-            <p className="text-muted-foreground max-w-2xl leading-relaxed">{artist.artist_bio}</p>
+            <p className="text-muted-foreground max-w-2xl leading-relaxed mx-auto text-center">
+              {artist.artist_bio}
+            </p>
           </section>
         )}
 
         {albums.length > 0 && (
           <section>
             <h2 className="text-2xl font-bold mb-6">Alben</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 justify-items-center">
               {albums.map((album) => (
                 <div key={album.id} className="relative border p-4 rounded-lg shadow hover:shadow-lg">
                   <AlbumCard album={album} />

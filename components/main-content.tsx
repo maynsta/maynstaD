@@ -22,6 +22,7 @@ export function MainContent({ children }: { children: ReactNode }) {
       className={cn(
         "pb-24 min-h-screen transition-all duration-300",
         isLargeScreen
+          ? "ml-72"
           ? "ml-72 scale-[0.95] origin-top-left"
           : isCollapsed
             ? "ml-0"
