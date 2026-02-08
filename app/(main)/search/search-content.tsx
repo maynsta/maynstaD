@@ -157,6 +157,12 @@ export function SearchContent({ userId }: SearchContentProps) {
       {!artistDetailActive && (
         <>
           <div className="mb-8 max-w-2xl relative mx-auto">
+    <div className="p-8">
+      <h1 className="text-3xl font-bold mb-6">Suche</h1>
+
+      {!artistDetailActive && (
+        <>
+          <div className="mb-8 max-w-2xl relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Song, Album oder Single suchen..."
@@ -191,6 +197,9 @@ export function SearchContent({ userId }: SearchContentProps) {
                     <span className="flex items-center gap-2 truncate">
                       {s.kind === "ai" && <Sparkles className="h-4 w-4 text-primary" />}
                       <span className="truncate">{s.title}</span>
+                    <span className="flex items-center gap-2">
+                      {s.kind === "ai" && <Sparkles className="h-4 w-4 text-primary" />}
+                      {s.title}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {s.kind === "song" && "Song"}
@@ -224,6 +233,13 @@ export function SearchContent({ userId }: SearchContentProps) {
             query={query}
             onDetailChange={setArtistDetailActive}
           />
+      <ArtistSearchContent
+        artists={searchResults.artists}
+        userId={userId}
+        playlists={(playlists as Playlist[]) || []}
+        query={query}
+        onDetailChange={setArtistDetailActive}
+      />
 
       {!artistDetailActive && searchResults.songs.length > 0 && (
         <section className="space-y-1">
@@ -239,6 +255,31 @@ export function SearchContent({ userId }: SearchContentProps) {
         </section>
       )}
       </div>
+
+          <ArtistSearchContent
+            artists={searchResults.artists}
+            userId={userId}
+            playlists={(playlists as Playlist[]) || []}
+            query={query}
+            onDetailChange={setArtistDetailActive}
+          />
+
+          {/* 🎵 Songs bleiben sichtbar */}
+          {searchResults.songs.length > 0 && (
+            <section className="space-y-1">
+              {searchResults.songs.map((song) => (
+                <SongListItem
+                  key={song.id}
+                  song={song}
+                  queue={searchResults.songs}
+                  playlists={(playlists as Playlist[]) || []}
+                  onPlaylistCreated={() => mutate(`playlists-${userId}`)}
+                />
+              ))}
+            </section>
+          )}
+        </>
+      ) : null}
     </div>
   )
 }

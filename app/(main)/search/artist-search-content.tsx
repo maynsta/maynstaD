@@ -90,6 +90,35 @@ export function ArtistSearchContent({
 
     setSelectedArtist({
       artist: artistProfile || artist,
+    const [{ data: albums }, { data: songs }, { data: singles }, { data: libraryItem }] =
+      await Promise.all([
+        supabase
+          .from("albums")
+          .select("*, artist:profiles(*)")
+          .eq("artist_id", artist.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("songs")
+          .select("*, artist:profiles(*), album:albums(*)")
+          .eq("artist_id", artist.id)
+          .not("album_id", "is", null)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("songs")
+          .select("*, artist:profiles(*), album:albums(*)")
+          .eq("artist_id", artist.id)
+          .is("album_id", null)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("library_items")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("artist_id", artist.id)
+          .maybeSingle(),
+      ])
+
+    setSelectedArtist({
+      artist,
       albums: albums || [],
       songs: songs || [],
       singles: singles || [],
@@ -131,6 +160,7 @@ export function ArtistSearchContent({
   if (selectedArtist) {
     return (
       <div className="mt-4 flex flex-col items-center">
+      <div className="mt-4">
         <Button
           variant="ghost"
           className="mb-6"
@@ -144,6 +174,7 @@ export function ArtistSearchContent({
         </Button>
 
         <div className="flex flex-col items-center text-center gap-3 w-full max-w-3xl">
+        <div className="flex flex-col items-center text-center gap-3">
           <Avatar className="h-28 w-28">
             <AvatarImage src={selectedArtist.artist.avatar_url || ""} />
             <AvatarFallback className="text-3xl">
@@ -172,6 +203,7 @@ export function ArtistSearchContent({
         </div>
 
         <div className="mt-8 flex flex-col gap-8 overflow-y-auto max-h-[calc(100vh-260px)] pr-2 w-full max-w-4xl">
+        <div className="mt-8 flex flex-col gap-8 overflow-y-auto max-h-[calc(100vh-260px)] pr-2">
           {selectedArtist.songs.length > 0 && (
             <section>
               <h3 className="text-2xl font-semibold mb-4">Songs</h3>
@@ -234,6 +266,7 @@ export function ArtistSearchContent({
 
   return (
     <section className="mb-8 text-center">
+    <section className="mb-8">
       <h2 className="text-xl font-semibold mb-3">Künstler</h2>
       <div className="space-y-2">
         {artists.map((artist) => (
@@ -242,6 +275,7 @@ export function ArtistSearchContent({
             type="button"
             onClick={() => handleArtistSelect(artist)}
             className="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors text-left max-w-3xl mx-auto"
+            className="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors text-left"
           >
             <Avatar className="h-12 w-12">
               <AvatarImage src={artist.avatar_url || ""} />

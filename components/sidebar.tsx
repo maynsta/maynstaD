@@ -69,6 +69,7 @@ export function Sidebar() {
             "fixed top-0 left-0 z-50 h-full bg-card transition-all duration-300 overflow-hidden",
             isOpen ? "w-screen" : "w-0",
             isLargeScreen && "w-72 shadow-lg"
+            isLargeScreen && "w-72 shadow-lg scale-[0.95] origin-top-left"
           )}
         >
           {isOpen && (
