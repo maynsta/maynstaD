@@ -85,9 +85,22 @@ export function HomeContent({ profile, recentlyPlayed: initialRecentlyPlayed, ha
         <section className="mb-10">
           <h2 className="text-xl font-semibold text-foreground mb-4">Zuletzt gehörte Songs</h2>
           <div className="space-y-1">
-            {recentSongs.slice(0, 5).map((song) => (
-              <SongListItem key={song.id} song={song} queue={recentSongs} playlists={playlists || []} />
-            ))}
+            {recentSongs.slice(0, 5).map((song) => {
+              const isBlocked =
+                song.is_explicit && profile?.parental_controls_enabled && !profile.explicit_content_enabled
+
+              return (
+                <SongListItem
+                  key={song.id}
+                  song={song}
+                  queue={recentSongs}
+                  playlists={playlists || []}
+                  showExplicitWarning={!!profile?.parental_controls_enabled}
+                  isBlocked={isBlocked}
+                  parentalPin={profile?.parental_pin}
+                />
+              )
+            })}
           </div>
         </section>
       )}

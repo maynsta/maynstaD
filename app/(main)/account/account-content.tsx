@@ -113,32 +113,51 @@ export function AccountContent({ profile: initialProfile, userId, userEmail }: A
 
   // ------------------------- PARENTAL -------------------------
   const [parentalEnabled, setParentalEnabled] = useState(profile?.parental_controls_enabled || false)
-  const [parentalPin, setParentalPin] = useState("")
-  const [oldParentalPin, setOldParentalPin] = useState("")
+  const [parentalPin, setParentalPin] = useState(profile?.parental_pin || "")
   const [musicVideosEnabled, setMusicVideosEnabled] = useState(profile?.music_videos_enabled ?? true)
   const [explicitEnabled, setExplicitEnabled] = useState(profile?.explicit_content_enabled ?? true)
 
-  const handleParentalEnabledChange = (checked: boolean) => setParentalEnabled(checked)
+  useEffect(() => {
+    setParentalEnabled(profile?.parental_controls_enabled || false)
+    setMusicVideosEnabled(profile?.music_videos_enabled ?? true)
+    setExplicitEnabled(profile?.explicit_content_enabled ?? true)
+    setParentalPin(profile?.parental_pin || "")
+  }, [profile?.parental_controls_enabled, profile?.music_videos_enabled, profile?.explicit_content_enabled, profile?.parental_pin])
+
+  const handleParentalEnabledChange = (checked: boolean) => {
+    setParentalEnabled(checked)
+    if (checked) {
+      setExplicitEnabled(false)
+    }
+  }
   const handleMusicVideosChange = (checked: boolean) => setMusicVideosEnabled(checked)
   const handleExplicitChange = (checked: boolean) => setExplicitEnabled(checked)
 
   const handleParentalPinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const pin = e.target.value.replace(/\D/g, "")
-    setOldParentalPin(parentalPin)
     setParentalPin(pin)
   }
 
   const handleSaveParental = async () => {
-    if (oldParentalPin && oldParentalPin !== profile?.parental_pin) {
-      showToast("Alter PIN ist falsch")
-      return
+    const pinToSave = parentalPin || profile?.parental_pin || null
+
+    if (parentalEnabled) {
+      if (!pinToSave) {
+        showToast("Bitte lege zuerst einen Code fest")
+        return
+      }
+
+      if (!/^\d{4,6}$/.test(pinToSave)) {
+        showToast("Der Code muss 4 bis 6 Ziffern haben")
+        return
+      }
     }
 
     await supabase.from("profiles").update({
       parental_controls_enabled: parentalEnabled,
-      parental_pin: parentalPin || null,
+      parental_pin: pinToSave,
       music_videos_enabled: musicVideosEnabled,
-      explicit_content_enabled: explicitEnabled,
+      explicit_content_enabled: parentalEnabled ? false : explicitEnabled,
       updated_at: new Date().toISOString(),
     }).eq("id", userId)
 
@@ -383,9 +402,20 @@ export function AccountContent({ profile: initialProfile, userId, userEmail }: A
               </div>
               {parentalEnabled && (
                 <div className="space-y-4">
-                  <Label htmlFor="parentalPin">Neuer PIN (4 Ziffern)</Label>
-                  <Input id="parentalPin" type="password" maxLength={4} value={parentalPin} onChange={handleParentalPinChange} className="mt-1 max-w-32" />
-                  <Button type="button" onClick={handleSaveParental}>PIN speichern</Button>
+                  <Label htmlFor="parentalPin">Code festlegen (4 bis 6 Ziffern)</Label>
+                  <Input
+                    id="parentalPin"
+                    type="password"
+                    maxLength={6}
+                    value={parentalPin}
+                    onChange={handleParentalPinChange}
+                    className="mt-1 max-w-40"
+                    placeholder="z. B. 1234"
+                  />
+                  <div className="text-sm text-muted-foreground">
+                    Explizite Inhalte sind blockiert. Zum einmaligen Abspielen muss der Code eingegeben werden.
+                  </div>
+                  <Button type="button" onClick={handleSaveParental}>Kindersicherung speichern</Button>
                 </div>
               )}
             </CardContent>
