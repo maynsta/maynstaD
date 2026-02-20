@@ -15,18 +15,6 @@ import { createClient } from "@/lib/supabase/client"
 import { useState, useEffect } from "react"
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog"
 import { useToast } from "@/hooks/use-toast"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 
 interface SongListItemProps {
   song: Song
@@ -36,7 +24,7 @@ interface SongListItemProps {
   onPlaylistCreated?: () => void
   showExplicitWarning?: boolean
   isBlocked?: boolean
-  parentalPin?: string | null
+  onRequestPin?: () => Promise<boolean>
 }
 
 export function SongListItem({
@@ -47,17 +35,13 @@ export function SongListItem({
   onPlaylistCreated,
   showExplicitWarning = false,
   isBlocked = false,
-  parentalPin,
+  onRequestPin,
 }: SongListItemProps) {
   // ⚡ Hier: playSong -> play
   const { play, currentSong, isPlaying } = usePlayer()
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
   const { toast } = useToast()
   const [isMounted, setIsMounted] = useState(false)
-  const [showParentalDialog, setShowParentalDialog] = useState(false)
-  const [showCodeDialog, setShowCodeDialog] = useState(false)
-  const [enteredCode, setEnteredCode] = useState("")
-  const [codeError, setCodeError] = useState("")
 
   const isCurrentSong = currentSong?.id === song.id
 
@@ -66,9 +50,9 @@ export function SongListItem({
   }, [])
 
   const handlePlay = async () => {
-    if (isBlocked) {
-      setShowParentalDialog(true)
-      return
+    if (isBlocked && onRequestPin) {
+      const allowed = await onRequestPin()
+      if (!allowed) return
     }
 
     if (queue && queue.length > 0) {
@@ -76,29 +60,6 @@ export function SongListItem({
     } else {
       play(song)
     }
-  }
-
-  const playCurrentSong = () => {
-    if (queue && queue.length > 0) {
-      play(song, queue)
-    } else {
-      play(song)
-    }
-  }
-
-  const handleCodeSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!parentalPin || enteredCode !== parentalPin) {
-      setCodeError("Falscher Code")
-      return
-    }
-
-    setShowCodeDialog(false)
-    setShowParentalDialog(false)
-    setEnteredCode("")
-    setCodeError("")
-    playCurrentSong()
   }
 
   const handleAddToLibrary = async () => {
@@ -242,6 +203,7 @@ export function SongListItem({
             size="icon"
             className="h-8 w-8 rounded-full"
             onClick={handlePlay}
+            disabled={isBlocked}
           >
             <Play className="h-4 w-4" />
           </Button>
@@ -284,64 +246,6 @@ export function SongListItem({
         onOpenChange={setShowCreatePlaylist}
         onCreated={onPlaylistCreated}
       />
-
-      <AlertDialog open={showParentalDialog} onOpenChange={setShowParentalDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Kindersicherung aktiviert!</AlertDialogTitle>
-            <AlertDialogDescription>
-              Dieser Song enthält expliziten Inhalt und wird ohne Code nicht abgespielt.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                setShowParentalDialog(false)
-                setShowCodeDialog(true)
-              }}
-            >
-              Code eingeben
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog
-        open={showCodeDialog}
-        onOpenChange={(open) => {
-          setShowCodeDialog(open)
-          if (!open) {
-            setEnteredCode("")
-            setCodeError("")
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Code eingeben</DialogTitle>
-            <DialogDescription>
-              Gib den festgelegten Kindersicherungs-Code ein, um den Song einmalig abzuspielen.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCodeSubmit} className="space-y-3">
-            <Input
-              type="password"
-              value={enteredCode}
-              onChange={(e) => {
-                setEnteredCode(e.target.value.replace(/\D/g, ""))
-                setCodeError("")
-              }}
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="Code"
-            />
-            {codeError && <p className="text-sm text-destructive">{codeError}</p>}
-            <Button type="submit" className="w-full">Bestätigen</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }
