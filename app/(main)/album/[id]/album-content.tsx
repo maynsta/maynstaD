@@ -7,7 +7,6 @@ import { usePlayer } from "@/contexts/player-context"
 import { Play, Pause, Music, Clock, Check, ArrowLeft, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { mutate } from "swr"
-import { PinDialog } from "@/components/pin-dialog"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 
@@ -181,15 +180,23 @@ export function AlbumContent({ album, songs: initialSongs, playlists, profile, u
       <section>
         <h2 className="text-xl font-semibold text-foreground mb-4">Songs</h2>
         <div className="space-y-1">
-          {songs.map((song) => (
-            <SongListItem
-              key={song.id}
-              song={song}
-              queue={songs}
-              playlists={playlists}
-              onPlaylistCreated={() => mutate(`playlists-${userId}`)}
-            />
-          ))}
+          {songs.map((song) => {
+            const isBlocked =
+              song.is_explicit && profile?.parental_controls_enabled && !profile.explicit_content_enabled
+
+            return (
+              <SongListItem
+                key={song.id}
+                song={song}
+                queue={songs}
+                playlists={playlists}
+                showExplicitWarning={!!profile?.parental_controls_enabled}
+                isBlocked={isBlocked}
+                parentalPin={profile?.parental_pin}
+                onPlaylistCreated={() => mutate(`playlists-${userId}`)}
+              />
+            )
+          })}
 
           {hasMore && <div ref={observerRef} className="h-10" />}
 

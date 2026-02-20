@@ -213,6 +213,7 @@ export function LibraryContent({
                     profile?.parental_controls_enabled &&
                     !profile.explicit_content_enabled
                   }
+                  parentalPin={profile?.parental_pin}
                 />
               ))}
             </div>
