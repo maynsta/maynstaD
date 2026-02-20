@@ -187,7 +187,6 @@ export function PlaylistContent({
                   playlists={allPlaylists}
                   showExplicitWarning={!!profile?.parental_controls_enabled}
                   isBlocked={isBlocked}
-                  parentalPin={profile?.parental_pin}
                   onPlaylistCreated={() => mutate(`playlists-${userId}`)}
                 />
               )
