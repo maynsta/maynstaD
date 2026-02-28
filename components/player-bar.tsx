@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useState } from "react"
+import Link from "next/link"
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog"
 import { createClient } from "@/lib/supabase/client"
 import useSWR, { mutate } from "swr"
@@ -208,7 +209,13 @@ export function PlayerBar({ variant = "bar", className }: PlayerBarProps) {
 
         <div className="flex w-full items-center justify-between">
           {/* Song info */}
-          <div className={cn("flex items-center gap-3", isSidebar ? "w-full" : "w-1/4")}>
+          <Link
+            href="/now-playing"
+            className={cn(
+              "flex items-center gap-3 rounded-md p-1 transition-colors hover:bg-accent",
+              isSidebar ? "w-full" : "w-1/4"
+            )}
+          >
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted overflow-hidden">
               {currentSong.cover_url ? (
                 <img
@@ -223,10 +230,10 @@ export function PlayerBar({ variant = "bar", className }: PlayerBarProps) {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{currentSong.title}</p>
               <p className="truncate text-xs text-muted-foreground">
-                {currentSong.artist?.display_name || "Unbekannt"}
+                {(currentSong.artist as { display_name?: string } | undefined)?.display_name || currentSong.artist?.artist_name || "Unbekannt"}
               </p>
             </div>
-          </div>
+          </Link>
 
           {/* Controls */}
           <div className={cn("flex flex-1 flex-col items-center gap-1", isSidebar && "mt-2")}>
